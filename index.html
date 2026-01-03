@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Flappy Bird – Mobile Support</title>
+<style>
+  html, body {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    overflow: hidden;
+    font-family: Arial, sans-serif;
+    background: #111;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+  }
+
+  #game-container {
+    position: relative;
+    width: 400px;
+    height: 600px;
+  }
+
+  canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+    background: #70c5ce;
+    border: 2px solid black;
+  }
+
+  .btn, #imageInput {
+    position: absolute;
+    z-index: 10;
+    padding: 10px 20px;
+    font-size: 16px;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    background: #2ecc71;
+    color: white;
+    display: none;
+  }
+
+  #imageInput {
+    margin-top: 10%;
+    top: 10px;
+    left: 10px;
+    width: 150px;
+    padding: 6px;
+    font-size: 14px;
+    border-radius: 4px;
+    background: white;
+    color: black;
+    display: block; /* always visible */
+  }
+
+  #startBtn {
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+  }
+
+  #restartBtn {
+    top: 55%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+  }
+
+  #scoreDisplay {
+    margin-top: 5%;
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    z-index: 10;
+    color: white;
+    font-size: 24px;
+    font-weight: bold;
+    text-align: right;
+  }
+
+  #levelDisplay {
+    margin-top: 5%;
+    position: absolute;
+    top: 40px;
+    right: 10px;
+    z-index: 10;
+    color: white;
+    font-size: 20px;
+    text-align: right;
+  }
+
+</style>
+</head>
+<body>
+
+<div id="game-container">
+  <canvas id="game" width="400" height="600"></canvas>
+  <input type="file" id="imageInput" accept="image/*">
+  <button id="startBtn" class="btn">Start Game</button>
+  <button id="restartBtn" class="btn">Restart</button>
+  <div id="scoreDisplay">Score: 0</div>
+  <div id="levelDisplay">Level: 1</div>
+</div>
+
+<script>
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
+const startBtn = document.getElementById("startBtn");
+const restartBtn = document.getElementById("restartBtn");
+const imageInput = document.getElementById("imageInput");
+const scoreDisplay = document.getElementById("scoreDisplay");
+const levelDisplay = document.getElementById("levelDisplay");
+
+let gameStarted = false;
+let gameOver = false;
+let score = 0;
+let level = 1;
+let pipeSpeed = 2;
+
+/* =====================
+   BIRD
+===================== */
+let birdImg = new Image();
+let bird = {
+  x: 80,
+  y: 200,
+  w: 40,
+  h: 40,
+  vel: 0,
+  gravity: 0.6,
+  jump: -10,
+  update(){
+    this.vel += this.gravity;
+    this.y += this.vel;
+    if(this.y + this.h > canvas.height - groundHeight) gameOver = true;
+  },
+  draw(){
+    if(birdImg.complete && birdImg.src) ctx.drawImage(birdImg,this.x,this.y,this.w,this.h);
+    else { ctx.fillStyle="red"; ctx.fillRect(this.x,this.y,this.w,this.h);}
+  },
+  flap(){this.vel=this.jump;}
+};
+
+/* =====================
+   CLOUDS
+===================== */
+const clouds = [];
+for(let i=0;i<5;i++){
+  clouds.push({x:Math.random()*canvas.width, y:Math.random()*200, r:Math.random()*20+20, speed:0.4});
+}
+
+function updateClouds(){
+  clouds.forEach(c=>{
+    c.x -= c.speed;
+    if(c.x + c.r <0) c.x = canvas.width + 50;
+  });
+}
+
+function drawClouds(){
+  ctx.fillStyle="white";
+  clouds.forEach(c=>{
+    ctx.beginPath();
+    ctx.arc(c.x, c.y, c.r,0,Math.PI*2);
+    ctx.arc(c.x+c.r, c.y+10, c.r,0,Math.PI*2);
+    ctx.arc(c.x-c.r, c.y+10, c.r,0,Math.PI*2);
+    ctx.fill();
+  });
+}
+
+/* =====================
+   GROUND
+===================== */
+const groundHeight = 80;
+function drawGround(){
+  ctx.fillStyle="#2ecc71";
+  ctx.fillRect(0,canvas.height-groundHeight,canvas.width,groundHeight);
+}
+
+/* =====================
+   PIPES
+===================== */
+let pipes = [];
+const pipeWidth = 60;
+const pipeGap = 150;
+let frame = 0;
+
+function addPipe(){
+  const topHeight = Math.random()*200 + 50;
+  pipes.push({x:canvas.width, top:topHeight, bottom:canvas.height - topHeight - pipeGap - groundHeight, scored:false});
+}
+
+function updatePipes(){
+  frame++;
+  if(frame%100===0) addPipe();
+  pipes.forEach(p=>{
+    p.x -= pipeSpeed;
+
+    // Collision
+    if(bird.x < p.x + pipeWidth && bird.x + bird.w > p.x &&
+       (bird.y < p.top || bird.y + bird.h > canvas.height - p.bottom - groundHeight)){
+      gameOver=true;
+    }
+
+    // Score & level
+    if(!p.scored && p.x + pipeWidth < bird.x){
+      score++;
+      p.scored = true;
+      if(score%5===0) level++;
+      pipeSpeed = 2 + level*0.5;
+      scoreDisplay.textContent = "Score: "+score;
+      levelDisplay.textContent = "Level: "+level;
+    }
+  });
+}
+
+function drawPipes(){
+  ctx.fillStyle="#27ae60";
+  pipes.forEach(p=>{
+    ctx.fillRect(p.x,0,pipeWidth,p.top);
+    ctx.fillRect(p.x,canvas.height-p.bottom-groundHeight,pipeWidth,p.bottom);
+  });
+}
+
+/* =====================
+   INPUT
+===================== */
+document.addEventListener("keydown", e=>{
+  if(e.code==="Space" && gameStarted && !gameOver) bird.flap();
+});
+
+// Mobile / Touch input
+canvas.addEventListener("touchstart", e=>{
+  e.preventDefault();
+  if(gameStarted && !gameOver) bird.flap();
+});
+canvas.addEventListener("mousedown", e=>{
+  if(gameStarted && !gameOver) bird.flap();
+});
+
+/* =====================
+   IMAGE INPUT
+===================== */
+imageInput.addEventListener("change", e=>{
+  const file = e.target.files[0];
+  if(file){
+    const reader = new FileReader();
+    reader.onload = function(evt){
+      birdImg.src = evt.target.result;
+    };
+    reader.readAsDataURL(file);
+  }
+});
+
+/* =====================
+   BUTTONS
+===================== */
+startBtn.addEventListener("click", ()=>{
+  gameStarted=true;
+  gameOver=false;
+  startBtn.style.display="none";
+});
+
+restartBtn.addEventListener("click", ()=>{
+  resetGame();
+  restartBtn.style.display="none";
+  gameOver=false;
+});
+
+/* =====================
+   RESET FUNCTION
+===================== */
+function resetGame(){
+  bird.y=200;
+  bird.vel=0;
+  pipes=[];
+  score=0;
+  level=1;
+  pipeSpeed=2;
+  frame=0;
+  scoreDisplay.textContent = "Score: 0";
+  levelDisplay.textContent = "Level: 1";
+}
+
+/* =====================
+   GAME LOOP
+===================== */
+function loop(){
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+
+  updateClouds();
+  drawClouds();
+
+  if(gameStarted && !gameOver){
+    bird.update();
+    updatePipes();
+  }
+
+  drawPipes();
+  bird.draw();
+  drawGround();
+
+  if(!gameStarted){
+    ctx.fillStyle="rgba(0,0,0,0.5)";
+    ctx.fillRect(0,0,canvas.width,canvas.height);
+    ctx.fillStyle="white";
+    ctx.font="28px Arial";
+    ctx.textAlign="center";
+    ctx.fillText("Select an Image & Press Start", canvas.width/2, canvas.height/2);
+    startBtn.style.display="block";
+  }
+
+  if(gameOver){
+    ctx.fillStyle="rgba(0,0,0,0.6)";
+    ctx.fillRect(0,0,canvas.width,canvas.height);
+    ctx.fillStyle="white";
+    ctx.font="32px Arial";
+    ctx.textAlign="center";
+    ctx.fillText("GAME OVER", canvas.width/2, canvas.height/2 - 20);
+    ctx.font="18px Arial";
+    ctx.fillText("Press Restart", canvas.width/2, canvas.height/2 + 20);
+    restartBtn.style.display="block";
+  }
+
+  requestAnimationFrame(loop);
+}
+
+loop();
+</script>
+
+</body>
+</html>
