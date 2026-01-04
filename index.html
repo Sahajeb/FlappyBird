@@ -5,7 +5,7 @@
 <meta name="viewport"
       content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 
-<title>Flappy Face Bird</title>
+<title>Flappy Combat – Smooth Edition</title>
 
 <style>
 *{box-sizing:border-box}
@@ -40,20 +40,34 @@ canvas{width:100%;height:100%;display:block}
 }
 
 #score{top:10px;right:10px;font-size:18px}
+#level{top:34px;right:10px;font-size:14px}
 #imageInput{top:10px;left:10px;font-size:11px}
 
 button{
+  border:none;
+  border-radius:10px;
+  padding:10px 18px;
+  font-weight:700;
+  cursor:pointer;
+}
+
+#startBtn,#restartBtn{
   position:absolute;
   top:50%;
   left:50%;
   transform:translate(-50%,-50%);
-  padding:12px 20px;
-  border:none;
-  border-radius:10px;
   background:#22c55e;
   color:white;
-  font-weight:700;
-  cursor:pointer;
+}
+
+#restartBtn{top:58%}
+
+#shootBtn{
+  position:absolute;
+  bottom:16px;
+  right:16px;
+  background:#ef4444;
+  color:white;
 }
 </style>
 </head>
@@ -62,9 +76,14 @@ button{
 
 <div id="game-container">
   <canvas id="game"></canvas>
+
   <input id="imageInput" class="ui" type="file" accept="image/*">
   <div id="score" class="ui">Score: 0</div>
+  <div id="level" class="ui">Level: 1</div>
+
   <button id="startBtn">START</button>
+  <button id="restartBtn" style="display:none">RESTART</button>
+  <button id="shootBtn">🔥 FIRE</button>
 </div>
 
 <script>
@@ -83,25 +102,24 @@ window.addEventListener("resize",resize);
 resize();
 
 /* ================= GAME STATE ================= */
-let started=false;
-let score=0;
-let frame=0;
-let lastTime=0;
+let started=false, gameOver=false;
+let score=0, level=1;
+let lastTime=0, frame=0;
+let pipeSpeed=1.9;
 
-/* ================= FACE IMAGE ================= */
-const faceImg = new Image();
+/* ================= BIRD (SMOOTH TUNED) ================= */
+const birdImg = new Image();
 
-/* ================= BIRD ================= */
 const bird = {
-  x:90,
+  x:80,
   y:220,
-  w:46,
-  h:36,
+  w:32,
+  h:32,
   vy:0,
 
-  gravity:0.35,
-  lift:-7,
-  wingPhase:0,
+  gravity:0.35,      // weaker gravity
+  lift:-7.2,         // softer flap
+  terminal:7,        // speed cap
 
   flap(){
     this.vy=this.lift;
@@ -109,56 +127,20 @@ const bird = {
 
   update(dt){
     this.vy+=this.gravity*dt;
+    if(this.vy>this.terminal) this.vy=this.terminal;
     this.y+=this.vy*dt;
-    this.wingPhase+=0.25*dt;
 
     if(this.y<0) this.y=0;
-    if(this.y+this.h>canvas.height-70) this.y=canvas.height-70-this.h;
+    if(this.y+this.h>canvas.height-70) gameOver=true;
   },
 
   draw(){
-    const cx=this.x+this.w/2;
-    const cy=this.y+this.h/2;
-
-    // Rotate slightly based on velocity
-    ctx.save();
-    ctx.translate(cx,cy);
-    ctx.rotate(Math.max(-0.4,Math.min(0.4,this.vy*0.04)));
-    ctx.translate(-cx,-cy);
-
-    /* BODY */
-    ctx.fillStyle="#facc15";
-    ctx.beginPath();
-    ctx.ellipse(cx,cy,22,16,0,0,Math.PI*2);
-    ctx.fill();
-
-    /* WINGS (FLAP ANIMATION) */
-    const wingOffset=Math.sin(this.wingPhase)*8;
-
-    ctx.fillStyle="#fde047";
-    ctx.beginPath();
-    ctx.ellipse(cx-22,cy+wingOffset,10,6,0,0,Math.PI*2);
-    ctx.fill();
-
-    ctx.beginPath();
-    ctx.ellipse(cx+22,cy-wingOffset,10,6,0,0,Math.PI*2);
-    ctx.fill();
-
-    /* FACE (IMAGE MASK) */
-    ctx.save();
-    ctx.beginPath();
-    ctx.arc(cx+6,cy-2,10,0,Math.PI*2);
-    ctx.clip();
-
-    if(faceImg.src){
-      ctx.drawImage(faceImg,cx-6,cy-12,24,24);
+    if(birdImg.src){
+      ctx.drawImage(birdImg,this.x,this.y,this.w,this.h);
     }else{
-      ctx.fillStyle="#ef4444";
-      ctx.fillRect(cx-6,cy-12,24,24);
+      ctx.fillStyle="#dc2626";
+      ctx.fillRect(this.x,this.y,this.w,this.h);
     }
-    ctx.restore();
-
-    ctx.restore();
   }
 };
 
@@ -188,28 +170,150 @@ function drawGround(){
   ctx.fillRect(0,canvas.height-70,canvas.width,70);
 }
 
+/* ================= PIPES ================= */
+const pipes=[];
+
+function addPipe(){
+  const gap=160;
+  const top=60+Math.random()*200;
+  pipes.push({x:canvas.width,top,scored:false,gap});
+}
+
+function updatePipes(dt){
+  if(frame%130===0) addPipe();
+
+  pipes.forEach(p=>{
+    p.x-=pipeSpeed*dt;
+
+    if(
+      bird.x<p.x+56 && bird.x+bird.w>p.x &&
+      (bird.y<p.top || bird.y+bird.h>p.top+p.gap)
+    ) gameOver=true;
+
+    if(!p.scored && p.x+56<bird.x){
+      p.scored=true;
+      score++;
+      if(score%6===0){level++;pipeSpeed+=0.25;}
+      updateHUD();
+    }
+  });
+}
+
+function drawPipes(){
+  ctx.fillStyle="#15803d";
+  pipes.forEach(p=>{
+    ctx.fillRect(p.x,0,56,p.top);
+    ctx.fillRect(p.x,p.top+p.gap,56,canvas.height);
+  });
+}
+
+/* ================= COMBAT ================= */
+let bullets=[], enemies=[];
+
+function shoot(){
+  if(!started||gameOver||bullets.length>6) return;
+  bullets.push({x:bird.x+bird.w,y:bird.y+bird.h/2,w:10,h:3});
+}
+
+function spawnEnemy(){
+  enemies.push({
+    x:canvas.width+40,
+    y:90+Math.random()*(canvas.height-240),
+    alive:true,
+    boom:0
+  });
+}
+
+function updateCombat(dt){
+  if(frame%190===0) spawnEnemy();
+
+  bullets.forEach(b=>b.x+=6.5*dt);
+  enemies.forEach(e=>{
+    if(e.alive) e.x-=(1.6+level*0.25)*dt;
+    else e.boom+=dt;
+  });
+
+  bullets.forEach(b=>{
+    enemies.forEach(e=>{
+      if(e.alive &&
+        b.x<e.x+36 && b.x+b.w>e.x &&
+        b.y<e.y+36 && b.y+b.h>e.y){
+        e.alive=false;
+        score+=2;
+        updateHUD();
+      }
+    });
+  });
+
+  bullets=bullets.filter(b=>b.x<canvas.width);
+  enemies=enemies.filter(e=>e.x>-60 && e.boom<8);
+}
+
+function drawCombat(){
+  ctx.fillStyle="yellow";
+  bullets.forEach(b=>ctx.fillRect(b.x,b.y,b.w,b.h));
+
+  enemies.forEach(e=>{
+    if(e.alive){
+      ctx.fillStyle="#7c3aed";
+      ctx.fillRect(e.x,e.y,36,36);
+    }else{
+      ctx.fillStyle=`rgba(255,140,0,${1-e.boom/8})`;
+      ctx.beginPath();
+      ctx.arc(e.x+18,e.y+18,e.boom*5,0,Math.PI*2);
+      ctx.fill();
+    }
+  });
+}
+
 /* ================= INPUT ================= */
 canvas.addEventListener("touchstart",e=>{
   e.preventDefault();
-  bird.flap();
+  if(e.touches.length===1) bird.flap();
+  if(e.touches.length===2) shoot();
 },{passive:false});
 
 canvas.addEventListener("mousedown",()=>bird.flap());
 document.addEventListener("keydown",e=>{
   if(e.code==="Space") bird.flap();
+  if(e.code==="KeyF") shoot();
 });
+
+document.getElementById("shootBtn").onclick=shoot;
+
+/* ================= UI ================= */
+const startBtn=document.getElementById("startBtn");
+const restartBtn=document.getElementById("restartBtn");
+const scoreEl=document.getElementById("score");
+const levelEl=document.getElementById("level");
+
+function updateHUD(){
+  scoreEl.textContent="Score: "+score;
+  levelEl.textContent="Level: "+level;
+}
+
+startBtn.onclick=()=>{
+  started=true;
+  startBtn.style.display="none";
+};
+
+restartBtn.onclick=reset;
 
 document.getElementById("imageInput").onchange=e=>{
   const r=new FileReader();
-  r.onload=ev=>faceImg.src=ev.target.result;
+  r.onload=ev=>birdImg.src=ev.target.result;
   r.readAsDataURL(e.target.files[0]);
 };
 
-/* ================= START ================= */
-document.getElementById("startBtn").onclick=()=>{
-  started=true;
-  document.getElementById("startBtn").style.display="none";
-};
+/* ================= RESET ================= */
+function reset(){
+  score=0;level=1;frame=0;pipeSpeed=1.9;
+  pipes.length=bullets.length=enemies.length=0;
+  bird.y=220;bird.vy=0;
+  gameOver=false;
+  restartBtn.style.display="none";
+  updateHUD();
+}
 
 /* ================= LOOP ================= */
 function loop(t){
@@ -219,17 +323,27 @@ function loop(t){
   ctx.clearRect(0,0,canvas.width,canvas.height);
   drawClouds();
 
-  if(started){
+  if(started&&!gameOver){
     frame++;
     bird.update(dt);
-    if(frame%60===0){
-      score++;
-      document.getElementById("score").textContent="Score: "+score;
-    }
+    updatePipes(dt);
+    updateCombat(dt);
   }
 
+  drawPipes();
+  drawCombat();
   bird.draw();
   drawGround();
+
+  if(gameOver){
+    ctx.fillStyle="rgba(0,0,0,0.55)";
+    ctx.fillRect(0,0,canvas.width,canvas.height);
+    ctx.fillStyle="white";
+    ctx.font="26px Arial";
+    ctx.textAlign="center";
+    ctx.fillText("GAME OVER",canvas.width/2,canvas.height/2);
+    restartBtn.style.display="block";
+  }
 
   requestAnimationFrame(loop);
 }
