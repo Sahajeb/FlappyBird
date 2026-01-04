@@ -2,17 +2,16 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport"
-      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
 
-<title>Flappy Combat – Configurable Bird</title>
+<title>Flappy Combat – Stable UI</title>
 
 <style>
 *{box-sizing:border-box}
 html,body{
-  margin:0;height:100%;overflow:hidden;
-  background:#020617;
+  margin:0;height:100%;
   display:flex;justify-content:center;align-items:center;
+  background:#020617;
   font-family:Arial,Helvetica,sans-serif;
 }
 
@@ -28,40 +27,72 @@ html,body{
 
 canvas{width:100%;height:100%;display:block}
 
-.ui{position:absolute;z-index:10;color:white;font-weight:700}
-
+.ui{position:absolute;z-index:10;color:#fff;font-weight:700}
 #score{top:10px;right:10px}
 #level{top:34px;right:10px}
-#shootBtn{bottom:16px;right:16px;background:#ef4444}
 
 button{
-  border:none;border-radius:10px;
-  padding:10px 16px;
-  font-weight:700;cursor:pointer;
+  border:none;
+  border-radius:10px;
+  padding:12px 20px;
+  font-weight:700;
+  cursor:pointer;
 }
-
-#startBtn,#restartBtn{
-  position:absolute;left:50%;
-  transform:translateX(-50%);
-  background:#22c55e;color:white;
-}
-
-#startBtn{bottom:28px}
-#restartBtn{top:58%;display:none}
 
 /* CONFIG PANEL */
 #config{
-  position:absolute;inset:0;
-  background:rgba(0,0,0,.75);
+  position:absolute;
+  inset:0;
+  background:rgba(0,0,0,.7);
   z-index:20;
   display:flex;
-  flex-direction:column;
   justify-content:center;
   align-items:center;
-  gap:14px;
 }
 
-select,input{padding:6px;border-radius:6px}
+#configCard{
+  background:#020617;
+  padding:20px;
+  border-radius:14px;
+  display:flex;
+  flex-direction:column;
+  gap:14px;
+  width:85%;
+  max-width:280px;
+}
+
+#configCard label{
+  font-size:14px;
+}
+
+select,input{
+  width:100%;
+  padding:8px;
+  border-radius:6px;
+}
+
+#startBtn{
+  background:#22c55e;
+  color:white;
+}
+
+#restartBtn{
+  position:absolute;
+  top:55%;
+  left:50%;
+  transform:translate(-50%,-50%);
+  background:#22c55e;
+  color:white;
+  display:none;
+}
+
+#shootBtn{
+  position:absolute;
+  bottom:16px;
+  right:16px;
+  background:#ef4444;
+  color:white;
+}
 </style>
 </head>
 
@@ -71,35 +102,38 @@ select,input{padding:6px;border-radius:6px}
   <canvas id="game"></canvas>
 
   <div id="config">
-    <div>
-      Shape:
-      <select id="shapeSelect">
-        <option value="bird">Full Bird</option>
-        <option value="face">Face Only</option>
-      </select>
-    </div>
+    <div id="configCard">
+      <label>
+        Shape
+        <select id="shapeSelect">
+          <option value="bird">Full Bird</option>
+          <option value="face">Face Only</option>
+        </select>
+      </label>
 
-    <div>
-      Size:
-      <select id="sizeSelect">
-        <option value="24">Small</option>
-        <option value="32" selected>Medium</option>
-        <option value="42">Large</option>
-      </select>
-    </div>
+      <label>
+        Size
+        <select id="sizeSelect">
+          <option value="24">Small</option>
+          <option value="32" selected>Medium</option>
+          <option value="42">Large</option>
+        </select>
+      </label>
 
-    <div>
-      Image:
-      <input id="imageInput" type="file" accept="image/*">
+      <label>
+        Image
+        <input id="imageInput" type="file" accept="image/*">
+      </label>
+
+      <button id="startBtn">START GAME</button>
     </div>
   </div>
 
   <div id="score" class="ui">Score: 0</div>
   <div id="level" class="ui">Level: 1</div>
 
-  <button id="startBtn">START</button>
   <button id="restartBtn">RESTART</button>
-  <button id="shootBtn" class="ui">🔥 FIRE</button>
+  <button id="shootBtn">🔥 FIRE</button>
 </div>
 
 <script>
@@ -120,16 +154,14 @@ addEventListener("resize",resize);resize();
 let started=false,gameOver=false;
 let score=0,level=1,frame=0,pipeSpeed=1.9;
 
-/* ================= CONFIG ================= */
-let birdShape="bird";
+/* ================= BIRD ================= */
 const birdImg=new Image();
+let birdShape="bird";
 
 const bird={
   x:80,y:220,w:32,h:32,vy:0,
   gravity:.35,lift:-7.2,terminal:7,
-
   flap(){this.vy=this.lift},
-
   update(dt){
     this.vy+=this.gravity*dt;
     this.vy=Math.min(this.vy,this.terminal);
@@ -137,14 +169,12 @@ const bird={
     if(this.y<0)this.y=0;
     if(this.y+this.h>canvas.height-70)gameOver=true;
   },
-
   draw(){
     if(!birdImg.src){
       ctx.fillStyle="#dc2626";
       ctx.fillRect(this.x,this.y,this.w,this.h);
       return;
     }
-
     if(birdShape==="face"){
       ctx.save();
       ctx.beginPath();
@@ -158,15 +188,18 @@ const bird={
   }
 };
 
-/* ================= CLOUDS & GROUND ================= */
+/* ================= CLOUDS / GROUND ================= */
 const clouds=[...Array(4)].map(()=>({
-  x:Math.random()*canvas.width,y:Math.random()*140,r:18+Math.random()*18
+  x:Math.random()*canvas.width,
+  y:Math.random()*140,
+  r:18+Math.random()*18
 }));
 
 function drawClouds(){
   ctx.fillStyle="white";
   clouds.forEach(c=>{
-    c.x-=.25;if(c.x<-60)c.x=canvas.width+60;
+    c.x-=.25;
+    if(c.x<-60)c.x=canvas.width+60;
     ctx.beginPath();
     ctx.arc(c.x,c.y,c.r,0,Math.PI*2);
     ctx.arc(c.x+20,c.y+10,c.r,0,Math.PI*2);
@@ -174,6 +207,7 @@ function drawClouds(){
     ctx.fill();
   });
 }
+
 function drawGround(){
   ctx.fillStyle="#16a34a";
   ctx.fillRect(0,canvas.height-70,canvas.width,70);
@@ -182,11 +216,7 @@ function drawGround(){
 /* ================= PIPES ================= */
 const pipes=[];
 function addPipe(){
-  pipes.push({
-    x:canvas.width,
-    top:60+Math.random()*200,
-    gap:160,scored:false
-  });
+  pipes.push({x:canvas.width,top:60+Math.random()*200,gap:160,scored:false});
 }
 function updatePipes(dt){
   if(frame%130===0)addPipe();
@@ -198,7 +228,8 @@ function updatePipes(dt){
     )gameOver=true;
 
     if(!p.scored && p.x+56<bird.x){
-      p.scored=true;score++;
+      p.scored=true;
+      score++;
       if(score%6===0){level++;pipeSpeed+=.25}
       updateHUD();
     }
@@ -236,7 +267,9 @@ function updateCombat(dt){
       if(e.alive&&
         b.x<e.x+36&&b.x+b.w>e.x&&
         b.y<e.y+36&&b.y+b.h>e.y){
-          e.alive=false;score+=2;updateHUD();
+          e.alive=false;
+          score+=2;
+          updateHUD();
       }
     });
   });
@@ -272,10 +305,9 @@ document.addEventListener("keydown",e=>{
 shootBtn.onclick=shoot;
 
 /* ================= UI ================= */
-const startBtn=document.getElementById("startBtn");
-const restartBtn=document.getElementById("restartBtn");
 const scoreEl=document.getElementById("score");
 const levelEl=document.getElementById("level");
+const restartBtn=document.getElementById("restartBtn");
 const config=document.getElementById("config");
 
 function updateHUD(){
@@ -283,13 +315,12 @@ function updateHUD(){
   levelEl.textContent="Level: "+level;
 }
 
-startBtn.onclick=()=>{
+document.getElementById("startBtn").onclick=()=>{
   birdShape=document.getElementById("shapeSelect").value;
   const size=+document.getElementById("sizeSelect").value;
   bird.w=bird.h=size;
   started=true;
   config.style.display="none";
-  startBtn.style.display="none";
 };
 
 restartBtn.onclick=()=>{
@@ -335,9 +366,11 @@ function loop(t){
     ctx.fillText("GAME OVER",canvas.width/2,canvas.height/2);
     restartBtn.style.display="block";
   }
+
   requestAnimationFrame(loop);
 }
 requestAnimationFrame(loop);
 </script>
+
 </body>
 </html>
